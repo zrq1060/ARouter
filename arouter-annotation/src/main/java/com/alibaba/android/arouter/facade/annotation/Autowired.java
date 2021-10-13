@@ -17,6 +17,7 @@ import java.lang.annotation.Target;
 public @interface Autowired {
 
     // Mark param's name or service name.
+    // 如果指定的是service名称，就是在当做依赖注入使用
     String name() default "";
 
     // If required, app will be crash when value is null.

@@ -17,13 +17,16 @@ import javax.lang.model.element.Element;
  */
 public class RouteMeta {
     private RouteType type;         // Type of route
+    // 目前没用到
     private Element rawType;        // Raw type of route
     private Class<?> destination;   // Destination
     private String path;            // Path of route
     private String group;           // Group of route
     private int priority = -1;      // The smaller the number, the higher the priority
     private int extra;              // Extra data
+    // 目标页面，需要从Intent获取的值，key为从Intent中获取内容的key，value为值的类型
     private Map<String, Integer> paramsType;  // Param type
+    // 目前没用到
     private String name;
 
     private Map<String, Autowired> injectConfig;  // Cache inject config.

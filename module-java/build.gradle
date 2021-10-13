@@ -20,6 +20,9 @@ android {
 
         javaCompileOptions {
             annotationProcessorOptions {
+                // AROUTER_MODULE_NAME作用：
+                // 为了防止生成同一包名（com.alibaba.android.arouter.routes）下的类名（IRouteRoot＼IInterceptorGroup＼IProviderGroup）冲突，
+                // 所以包名下的类名后面拼接［AROUTER_MODULE_NAME］的值，以进行区分
                 arguments = [AROUTER_MODULE_NAME: project.getName(), AROUTER_GENERATE_DOC: "enable"]
             }
         }

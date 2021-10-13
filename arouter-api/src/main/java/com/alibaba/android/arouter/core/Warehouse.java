@@ -20,7 +20,9 @@ import java.util.Map;
  */
 class Warehouse {
     // Cache route and metas
+    // 还未加载的组（IRouteGroup）
     static Map<String, Class<? extends IRouteGroup>> groupsIndex = new HashMap<>();
+    // 已经加载的个体（RouteMeta）
     static Map<String, RouteMeta> routes = new HashMap<>();
 
     // Cache provider

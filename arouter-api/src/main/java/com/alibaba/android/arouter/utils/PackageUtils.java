@@ -21,6 +21,7 @@ public class PackageUtils {
     private static String NEW_VERSION_NAME;
     private static int NEW_VERSION_CODE;
 
+    // 是否是新版本，会在init时，非Debug（未调用openDebug()）时会调用
     public static boolean isNewVersion(Context context) {
         PackageInfo packageInfo = getPackageInfo(context);
         if (null != packageInfo) {
@@ -42,6 +43,9 @@ public class PackageUtils {
         }
     }
 
+    // 更新新版本
+    // -在Debug（调用openDebug()）下，NEW_VERSION_NAME、NEW_VERSION_CODE始终为默认值，不会进行存储；
+    // -在非Debug（未调用openDebug()）下，isNewVersion()就会调用，如果是新版本，NEW_VERSION_NAME、NEW_VERSION_CODE就会有新值，会进行存储；
     public static void updateVersion(Context context) {
         if (!android.text.TextUtils.isEmpty(NEW_VERSION_NAME) && NEW_VERSION_CODE != 0) {
             SharedPreferences sp = context.getSharedPreferences(AROUTER_SP_CACHE_KEY, Context.MODE_PRIVATE);

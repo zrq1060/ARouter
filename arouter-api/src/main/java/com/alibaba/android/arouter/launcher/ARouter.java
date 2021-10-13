@@ -38,11 +38,14 @@ public final class ARouter {
      */
     public static void init(Application application) {
         if (!hasInit) {
+            // 防止已经初始化
             logger = _ARouter.logger;
             _ARouter.logger.info(Consts.TAG, "ARouter init start.");
+            // 初始化交由_ARouter处理
             hasInit = _ARouter.init(application);
 
             if (hasInit) {
+                // 初始化成功后，通知_ARouter处理后续逻辑
                 _ARouter.afterInit();
             }
 

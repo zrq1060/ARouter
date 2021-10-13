@@ -31,11 +31,14 @@ public class InterceptorServiceImpl implements InterceptorService {
 
     @Override
     public void doInterceptions(final Postcard postcard, final InterceptorCallback callback) {
+        // Warehouse.interceptors 中的拦截器，是在初始化时register 函数中设置的
         if (MapUtils.isNotEmpty(Warehouse.interceptorsIndex)) {
 
+            // 如果初始化未完成，则等待10s
             checkInterceptorsInitStatus();
 
             if (!interceptorHasInit) {
+                // 还没初始化完成，说明拦截器初始化花费太多时间
                 callback.onInterrupt(new HandlerException("Interceptors initialization takes too much time."));
                 return;
             }
@@ -43,13 +46,17 @@ public class InterceptorServiceImpl implements InterceptorService {
             LogisticsCenter.executor.execute(new Runnable() {
                 @Override
                 public void run() {
+                    // 支持多线程操作的计数器
                     CancelableCountDownLatch interceptorCounter = new CancelableCountDownLatch(Warehouse.interceptors.size());
                     try {
+                        // 递归处理，执行拦截器
                         _execute(0, interceptorCounter, postcard);
                         interceptorCounter.await(postcard.getTimeout(), TimeUnit.SECONDS);
                         if (interceptorCounter.getCount() > 0) {    // Cancel the navigation this time, if it hasn't return anythings.
+                            // 大于 0 说明此次请求被某个拦截器拦截了，走失败流程
                             callback.onInterrupt(new HandlerException("The interceptor processing timed out."));
                         } else if (null != postcard.getTag()) {    // Maybe some exception in the tag.
+                            // 在拦截器中断，可传递异常到postcard中
                             callback.onInterrupt((Throwable) postcard.getTag());
                         } else {
                             callback.onContinue(postcard);
@@ -60,6 +67,7 @@ public class InterceptorServiceImpl implements InterceptorService {
                 }
             });
         } else {
+            // 如果没有拦截器，则默认执行callback的onContinue
             callback.onContinue(postcard);
         }
     }
@@ -78,7 +86,10 @@ public class InterceptorServiceImpl implements InterceptorService {
                 @Override
                 public void onContinue(Postcard postcard) {
                     // Last interceptor excute over with no exception.
+                    // 没有异常地执行最后一个拦截器。
+                    // 执行完一个拦截器，拦截器计数器减一
                     counter.countDown();
+                    // 继续执行下一个
                     _execute(index + 1, counter, postcard);  // When counter is down, it will be execute continue ,but index bigger than interceptors size, then U know.
                 }
 
@@ -105,11 +116,14 @@ public class InterceptorServiceImpl implements InterceptorService {
             @Override
             public void run() {
                 if (MapUtils.isNotEmpty(Warehouse.interceptorsIndex)) {
+                    // 遍历拦截器列表，通过反射构建对象并初始化
+                    // Warehouse.interceptorsIndex，包含所有模块的IInterceptor的class
                     for (Map.Entry<Integer, Class<? extends IInterceptor>> entry : Warehouse.interceptorsIndex.entrySet()) {
                         Class<? extends IInterceptor> interceptorClass = entry.getValue();
                         try {
                             IInterceptor iInterceptor = interceptorClass.getConstructor().newInstance();
                             iInterceptor.init(context);
+                            // Warehouse.interceptors，包含所有模块的IInterceptor的实例
                             Warehouse.interceptors.add(iInterceptor);
                         } catch (Exception ex) {
                             throw new HandlerException(TAG + "ARouter init interceptor error! name = [" + interceptorClass.getName() + "], reason = [" + ex.getMessage() + "]");

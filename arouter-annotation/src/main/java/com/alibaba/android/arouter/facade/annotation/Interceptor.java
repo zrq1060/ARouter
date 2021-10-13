@@ -18,11 +18,13 @@ import java.lang.annotation.Target;
 public @interface Interceptor {
     /**
      * The priority of interceptor, ARouter will be excute them follow the priority.
+     * 拦截器的优先级，ARouter将按照它们的优先级执行。
      */
     int priority();
 
     /**
      * The name of interceptor, may be used to generate javadoc.
+     * 拦截器的名称，可以用来生成javadoc。
      */
     String name() default "Default";
 }

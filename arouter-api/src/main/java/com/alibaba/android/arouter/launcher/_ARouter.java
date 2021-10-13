@@ -60,6 +60,7 @@ final class _ARouter {
 
     protected static synchronized boolean init(Application application) {
         mContext = application;
+        // 初始化交由LogisticsCenter处理（！！！）
         LogisticsCenter.init(mContext, executor);
         logger.info(Consts.TAG, "ARouter init success!");
         hasInit = true;
@@ -181,10 +182,15 @@ final class _ARouter {
         if (TextUtils.isEmpty(path)) {
             throw new HandlerException(Consts.TAG + "Parameter is invalid!");
         } else {
+            // TODO 待研究
             PathReplaceService pService = ARouter.getInstance().navigation(PathReplaceService.class);
             if (null != pService) {
+                // 用于路径替换，这对于某些需要控制页面跳转流程的场景比较有用
+                // 例如，如果某个页面需要登录才可以展示的话
+                // 就可以通过 PathReplaceService 将 path 替换 loginPagePath
                 path = pService.forString(path);
             }
+            // path要求只是有两个/，使用第一个/和第二个/之间的作为 group
             return build(path, extractGroup(path), true);
         }
     }
@@ -212,6 +218,7 @@ final class _ARouter {
             throw new HandlerException(Consts.TAG + "Parameter is invalid!");
         } else {
             if (!afterReplace) {
+                // 非替换之后，即现在替换，调用对应的方法
                 PathReplaceService pService = ARouter.getInstance().navigation(PathReplaceService.class);
                 if (null != pService) {
                     path = pService.forString(path);
@@ -249,6 +256,7 @@ final class _ARouter {
 
     protected <T> T navigation(Class<? extends T> service) {
         try {
+            // 从 Warehouse.providersIndex 取值拿到 RouteMeta 中存储的 path 和 group
             Postcard postcard = LogisticsCenter.buildProvider(service.getName());
 
             // Compatible 1.0.5 compiler sdk.
@@ -265,7 +273,9 @@ final class _ARouter {
             // Set application to postcard.
             postcard.setContext(mContext);
 
+            // 路由的元数据，不为空，就去实例化对应的路由对象
             LogisticsCenter.completion(postcard);
+            // 最后返回provide对象
             return (T) postcard.getProvider();
         } catch (NoRouteFoundException ex) {
             logger.warning(Consts.TAG, ex.getMessage());
@@ -282,9 +292,12 @@ final class _ARouter {
      * @param callback    cb
      */
     protected Object navigation(final Context context, final Postcard postcard, final int requestCode, final NavigationCallback callback) {
+        // 获取预处理的Provider
         PretreatmentService pretreatmentService = ARouter.getInstance().navigation(PretreatmentService.class);
+        // 如果不为空，就执行
         if (null != pretreatmentService && !pretreatmentService.onPretreatment(context, postcard)) {
             // Pretreatment failed, navigation canceled.
+            // 用于执行跳转前的预处理操作，可以通过 onPretreatment 方法的返回值决定是否取消跳转
             return null;
         }
 
@@ -292,8 +305,11 @@ final class _ARouter {
         postcard.setContext(null == context ? mContext : context);
 
         try {
+            // 主要是为Postcard找到对应router，并且用router中信息填充Postcard对象。
             LogisticsCenter.completion(postcard);
         } catch (NoRouteFoundException ex) {
+            // 没有找到匹配的目标类，就抛出异常，也就是降级处理
+            // 下面就执行一些提示操作和事件回调通知
             logger.warning(Consts.TAG, ex.getMessage());
 
             if (debuggable()) {
@@ -309,9 +325,11 @@ final class _ARouter {
             }
 
             if (null != callback) {
+                // 有单个降级的回调，则使用单个降级服务。
                 callback.onLost(postcard);
             } else {
                 // No callback for this invoke, then we use the global degrade service.
+                // 没有此调用的回调，则使用全局降级服务。
                 DegradeService degradeService = ARouter.getInstance().navigation(DegradeService.class);
                 if (null != degradeService) {
                     degradeService.onLost(context, postcard);
@@ -322,10 +340,14 @@ final class _ARouter {
         }
 
         if (null != callback) {
+            // 找到了匹配的目标类
             callback.onFound(postcard);
         }
 
         if (!postcard.isGreenChannel()) {   // It must be run in async thread, maybe interceptor cost too mush time made ANR.
+            // 没有开启绿色通道，那么就还需要执行所有拦截器
+            // 外部可以通过拦截器实现：控制是否允许跳转、更改跳转参数等逻辑
+            // 它必须在异步线程中运行，可能拦截器花费太多的时间使ANR。
             interceptorService.doInterceptions(postcard, new InterceptorCallback() {
                 /**
                  * Continue process
@@ -334,6 +356,7 @@ final class _ARouter {
                  */
                 @Override
                 public void onContinue(Postcard postcard) {
+                    // 被通知继续，则继续跳转
                     _navigation(postcard, requestCode, callback);
                 }
 
@@ -344,6 +367,8 @@ final class _ARouter {
                  */
                 @Override
                 public void onInterrupt(Throwable exception) {
+                    // 被通知拦截
+                    // 通知callback拦截
                     if (null != callback) {
                         callback.onInterrupt(postcard);
                     }
@@ -352,6 +377,7 @@ final class _ARouter {
                 }
             });
         } else {
+            // 开启了绿色通道，直接跳转，不需要处理拦截器
             return _navigation(postcard, requestCode, callback);
         }
 
@@ -375,6 +401,7 @@ final class _ARouter {
 
                 // Non activity, need FLAG_ACTIVITY_NEW_TASK
                 if (!(currentContext instanceof Activity)) {
+                    // 不是Activity，增加［FLAG_ACTIVITY_NEW_TASK］flag
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 }
 
@@ -385,6 +412,7 @@ final class _ARouter {
                 }
 
                 // Navigation in main looper.
+                // 在主线程跳转
                 runInMainThread(new Runnable() {
                     @Override
                     public void run() {
@@ -394,10 +422,12 @@ final class _ARouter {
 
                 break;
             case PROVIDER:
+                // 提供者，则返回其提供者对象
                 return postcard.getProvider();
             case BOARDCAST:
             case CONTENT_PROVIDER:
             case FRAGMENT:
+                // 广播，内容提供者，fragment，则创建对象并赋值参数
                 Class<?> fragmentMeta = postcard.getDestination();
                 try {
                     Object instance = fragmentMeta.getConstructor().newInstance();
@@ -453,6 +483,7 @@ final class _ARouter {
             ((Activity) currentContext).overridePendingTransition(postcard.getEnterAnim(), postcard.getExitAnim());
         }
 
+        // 通知结束
         if (null != callback) { // Navigation over.
             callback.onArrival(postcard);
         }

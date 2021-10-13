@@ -43,6 +43,7 @@ import static javax.lang.model.element.Modifier.PUBLIC;
 @AutoService(Processor.class)
 @SupportedAnnotationTypes(ANNOTATION_TYPE_INTECEPTOR)
 public class InterceptorProcessor extends BaseProcessor {
+    // 用于保存拦截器，按照优先级高低进行排序
     private Map<Integer, Element> interceptors = new TreeMap<>();
     private TypeMirror iInterceptor = null;
 
@@ -64,6 +65,7 @@ public class InterceptorProcessor extends BaseProcessor {
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
         if (CollectionUtils.isNotEmpty(annotations)) {
+            // 拿到所有使用了 @Interceptor 进行修饰的代码元素
             Set<? extends Element> elements = roundEnv.getElementsAnnotatedWith(Interceptor.class);
             try {
                 parseInterceptors(elements);
@@ -87,12 +89,14 @@ public class InterceptorProcessor extends BaseProcessor {
 
             // Verify and cache, sort incidentally.
             for (Element element : elements) {
+                // 判断使用了 @Interceptor 进行修饰的代码元素是否同时实现了 IInterceptor 这个接口
                 if (verify(element)) {  // Check the interceptor meta
                     logger.info("A interceptor verify over, its " + element.asType());
                     Interceptor interceptor = element.getAnnotation(Interceptor.class);
 
                     Element lastInterceptor = interceptors.get(interceptor.priority());
                     if (null != lastInterceptor) { // Added, throw exceptions
+                        // 不为 null 说明存在两个拦截器其优先级相等，这是不允许的，直接抛出异常
                         throw new IllegalArgumentException(
                                 String.format(Locale.getDefault(), "More than one interceptors use same priority [%d], They are [%s] and [%s].",
                                         interceptor.priority(),
@@ -101,6 +105,7 @@ public class InterceptorProcessor extends BaseProcessor {
                         );
                     }
 
+                    // 将拦截器按照优先级高低进行排序保存
                     interceptors.put(interceptor.priority(), element);
                 } else {
                     logger.error("A interceptor verify failed, its " + element.asType());
@@ -108,7 +113,9 @@ public class InterceptorProcessor extends BaseProcessor {
             }
 
             // Interface of ARouter.
+            // 拿到 IInterceptor 这个接口的类型抽象
             TypeElement type_IInterceptor = elementUtils.getTypeElement(IINTERCEPTOR);
+            // 拿到 IInterceptorGroup 这个接口的类型抽象
             TypeElement type_IInterceptorGroup = elementUtils.getTypeElement(IINTERCEPTOR_GROUP);
 
             /**
@@ -116,6 +123,7 @@ public class InterceptorProcessor extends BaseProcessor {
              *
              *  ```Map<Integer, Class<? extends IInterceptor>>```
              */
+            //　生成对 Map<Integer, Class<? extends IInterceptor>> 这段代码的抽象封装
             ParameterizedTypeName inputMapTypeOfTollgate = ParameterizedTypeName.get(
                     ClassName.get(Map.class),
                     ClassName.get(Integer.class),
@@ -126,29 +134,34 @@ public class InterceptorProcessor extends BaseProcessor {
             );
 
             // Build input param name.
+            // 生成 loadInto 方法的入参参数 interceptors
             ParameterSpec tollgateParamSpec = ParameterSpec.builder(inputMapTypeOfTollgate, "interceptors").build();
 
             // Build method : 'loadInto'
+            // 生成 loadInto 方法
             MethodSpec.Builder loadIntoMethodOfTollgateBuilder = MethodSpec.methodBuilder(METHOD_LOAD_INTO)
                     .addAnnotation(Override.class)
                     .addModifiers(PUBLIC)
                     .addParameter(tollgateParamSpec);
 
             // Generate
+            // 生成 loadInto 方法内部代码
             if (null != interceptors && interceptors.size() > 0) {
                 // Build method body
                 for (Map.Entry<Integer, Element> entry : interceptors.entrySet()) {
+                    // 遍历每个拦截器，生成 interceptors.put(7, Test1Interceptor.class); 这类型的代码
                     loadIntoMethodOfTollgateBuilder.addStatement("interceptors.put(" + entry.getKey() + ", $T.class)", ClassName.get((TypeElement) entry.getValue()));
                 }
             }
 
             // Write to disk(Write file even interceptors is empty.)
+            // 生成类名
             JavaFile.builder(PACKAGE_OF_GENERATE_FILE,
-                    TypeSpec.classBuilder(NAME_OF_INTERCEPTOR + SEPARATOR + moduleName)
-                            .addModifiers(PUBLIC)
-                            .addJavadoc(WARNING_TIPS)
-                            .addMethod(loadIntoMethodOfTollgateBuilder.build())
-                            .addSuperinterface(ClassName.get(type_IInterceptorGroup))
+                    TypeSpec.classBuilder(NAME_OF_INTERCEPTOR + SEPARATOR + moduleName) // 设置类名
+                            .addModifiers(PUBLIC) // 添加 public 修饰符
+                            .addJavadoc(WARNING_TIPS) // 添加注释
+                            .addMethod(loadIntoMethodOfTollgateBuilder.build()) // 添加 loadInto 方法
+                            .addSuperinterface(ClassName.get(type_IInterceptorGroup)) // 最后生成的类同时实现了 IInterceptorGroup 接口
                             .build()
             ).build().writeTo(mFiler);
 
@@ -165,6 +178,7 @@ public class InterceptorProcessor extends BaseProcessor {
     private boolean verify(Element element) {
         Interceptor interceptor = element.getAnnotation(Interceptor.class);
         // It must be implement the interface IInterceptor and marked with annotation Interceptor.
+        // 它必须实现IInterceptor接口，并标记为Interceptor注解。
         return null != interceptor && ((TypeElement) element).getInterfaces().contains(iInterceptor);
     }
 }

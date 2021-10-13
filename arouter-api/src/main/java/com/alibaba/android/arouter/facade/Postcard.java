@@ -22,6 +22,8 @@ import java.util.ArrayList;
 
 /**
  * A container that contains the roadmap.
+ * 明信片
+ * 包含路线图的容器。
  *
  * @author Alex <a href="mailto:zhilong.liu@aliyun.com">Contact me.</a>
  * @version 1.1.0
